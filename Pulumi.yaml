@@ -1,0 +1,6 @@
+name: tower
+runtime:
+  name: python
+  options:
+    virtualenv: .venv
+description: Centralized GitHub repository management

@@ -1,0 +1,52 @@
+# Tower Repository Configuration
+
+# Default settings applied to all repositories
+defaults:
+  visibility: private
+  has_issues: true
+  has_wiki: false
+  has_projects: false
+  delete_branch_on_merge: true
+  allow_merge_commit: false
+  allow_squash_merge: true
+  allow_rebase_merge: false
+  topics:
+    - managed-by-tower
+  branch_protection:
+    pattern: main
+    required_reviews: 1
+    dismiss_stale_reviews: true
+    require_code_owner_reviews: false
+
+# Repository-specific configurations (override defaults as needed)
+repositories:
+  # Minimal config - just name, uses all defaults
+  - name: api-service
+    description: Core API service
+
+  # Override specific settings
+  - name: public-docs
+    description: Public documentation site
+    visibility: public
+    has_wiki: true
+    branch_protection_disabled: true  # No protection for docs
+
+  # Add extra topics on top of defaults
+  - name: data-pipeline
+    description: ETL data processing pipeline
+    extra_topics:
+      - etl
+      - data-engineering
+    variables:
+      - name: ENVIRONMENT
+        value: production
+
+  # Completely override topics (replaces defaults)
+  - name: legacy-app
+    description: Legacy application (deprecated)
+    topics:
+      - legacy
+      - deprecated
+    branch_protection:
+      pattern: main
+      required_reviews: 2  # Stricter review for legacy

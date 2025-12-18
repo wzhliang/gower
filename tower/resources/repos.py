@@ -5,8 +5,13 @@ import pulumi_github as github
 from tower.models import RepositoryConfig
 
 
-def create_repository(config: RepositoryConfig) -> github.Repository:
-    """Create a GitHub repository from configuration."""
+def get_repository(name: str) -> github.GetRepositoryResult:
+    """Get an existing repository by name."""
+    return github.get_repository(name=name)
+
+
+def configure_repository(config: RepositoryConfig) -> github.Repository:
+    """Configure settings for an existing GitHub repository."""
     return github.Repository(
         config.name,
         name=config.name,
@@ -23,17 +28,18 @@ def create_repository(config: RepositoryConfig) -> github.Repository:
     )
 
 
-def create_branch_protection(
-    repo: github.Repository, config: RepositoryConfig
+def configure_branch_protection(
+    config: RepositoryConfig,
 ) -> github.BranchProtection | None:
-    """Create branch protection rules for a repository."""
+    """Configure branch protection rules for a repository."""
     if not config.branch_protection:
         return None
 
     bp = config.branch_protection
+    # Use repository name directly since repo already exists
     return github.BranchProtection(
         f"{config.name}-{bp.pattern}-protection",
-        repository_id=repo.node_id,
+        repository_id=config.name,
         pattern=bp.pattern,
         required_pull_request_reviews=[
             github.BranchProtectionRequiredPullRequestReviewsArgs(

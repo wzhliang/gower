@@ -9,8 +9,8 @@ from tower.models import (
     merge_config,
 )
 from tower.resources import (
-    create_branch_protection,
-    create_repository,
+    configure_branch_protection,
+    configure_repository,
     create_secret,
     create_variable,
 )
@@ -34,8 +34,10 @@ def main() -> None:
 
     for override in repos:
         config = merge_config(defaults, override)
-        repo = create_repository(config)
-        create_branch_protection(repo, config)
+
+        # Configure existing repository settings
+        repo = configure_repository(config)
+        configure_branch_protection(config)
 
         for secret in config.secrets:
             create_secret(config.name, secret.name, secret.value)

@@ -1,5 +1,6 @@
 """Pulumi resources for GitHub repository management."""
 
+import pulumi
 import pulumi_github as github
 
 from tower.models import RepositoryConfig
@@ -21,10 +22,15 @@ def _repo_name(name: str) -> str:
 
 
 def configure_repository(config: RepositoryConfig) -> github.Repository:
-    """Configure settings for an existing GitHub repository."""
+    """Configure settings for an existing GitHub repository.
+
+    Uses Pulumi import to adopt existing repos instead of creating new ones.
+    """
+    repo_name = _repo_name(config.name)
+
     return github.Repository(
         _resource_name(config.name),
-        name=_repo_name(config.name),
+        name=repo_name,
         description=config.description,
         visibility=config.visibility,
         has_issues=config.has_issues,
@@ -35,6 +41,7 @@ def configure_repository(config: RepositoryConfig) -> github.Repository:
         allow_squash_merge=config.allow_squash_merge,
         allow_rebase_merge=config.allow_rebase_merge,
         topics=config.topics,
+        opts=pulumi.ResourceOptions(import_=repo_name),
     )
 
 

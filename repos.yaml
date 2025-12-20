@@ -17,3 +17,6 @@ defaults:
 repositories:
   - name: wzhliang/tt-01
     description: Test repository for Tower
+
+  - name: wzhliang/tt-02
+    visibility: private

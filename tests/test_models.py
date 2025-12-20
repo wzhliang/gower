@@ -1,10 +1,11 @@
 """Tests for repository configuration models."""
 
 from tower.models import (
-    BranchProtection,
     RepositoryDefaults,
     RepositoryOverride,
     RepositoryVariable,
+    Ruleset,
+    RulesetPullRequest,
     merge_config,
 )
 
@@ -68,37 +69,6 @@ def test_merge_topics_override_replaces_defaults() -> None:
     assert config.topics == ["custom", "special"]
 
 
-def test_merge_branch_protection_disabled() -> None:
-    """Test that branch protection can be explicitly disabled."""
-    defaults = RepositoryDefaults(
-        branch_protection=BranchProtection(pattern="main", required_reviews=1)
-    )
-    override = RepositoryOverride(
-        name="docs-repo",
-        branch_protection_disabled=True,
-    )
-
-    config = merge_config(defaults, override)
-
-    assert config.branch_protection is None
-
-
-def test_merge_branch_protection_override() -> None:
-    """Test that branch protection can be overridden."""
-    defaults = RepositoryDefaults(
-        branch_protection=BranchProtection(required_reviews=1)
-    )
-    override = RepositoryOverride(
-        name="critical-repo",
-        branch_protection=BranchProtection(required_reviews=3),
-    )
-
-    config = merge_config(defaults, override)
-
-    assert config.branch_protection is not None
-    assert config.branch_protection.required_reviews == 3
-
-
 def test_merge_preserves_secrets_and_variables() -> None:
     """Test that secrets and variables from override are preserved."""
     defaults = RepositoryDefaults()
@@ -113,3 +83,73 @@ def test_merge_preserves_secrets_and_variables() -> None:
 
     assert len(config.variables) == 1
     assert config.variables[0].name == "ENV"
+
+
+def test_merge_ruleset_from_defaults() -> None:
+    """Test that ruleset from defaults is applied."""
+    defaults = RepositoryDefaults(
+        ruleset=Ruleset(
+            name="default-protection",
+            pull_request=RulesetPullRequest(required_approving_review_count=1),
+        )
+    )
+    override = RepositoryOverride(name="repo-with-ruleset")
+
+    config = merge_config(defaults, override)
+
+    assert config.ruleset is not None
+    assert config.ruleset.name == "default-protection"
+    assert config.ruleset.pull_request.required_approving_review_count == 1
+
+
+def test_merge_ruleset_disabled() -> None:
+    """Test that ruleset can be explicitly disabled."""
+    defaults = RepositoryDefaults(ruleset=Ruleset(name="default-protection"))
+    override = RepositoryOverride(
+        name="repo-no-ruleset",
+        ruleset_disabled=True,
+    )
+
+    config = merge_config(defaults, override)
+
+    assert config.ruleset is None
+
+
+def test_merge_ruleset_override() -> None:
+    """Test that ruleset can be overridden."""
+    defaults = RepositoryDefaults(
+        ruleset=Ruleset(
+            name="default-protection",
+            pull_request=RulesetPullRequest(required_approving_review_count=1),
+        )
+    )
+    override = RepositoryOverride(
+        name="critical-repo",
+        ruleset=Ruleset(
+            name="strict-protection",
+            pull_request=RulesetPullRequest(required_approving_review_count=2),
+        ),
+    )
+
+    config = merge_config(defaults, override)
+
+    assert config.ruleset is not None
+    assert config.ruleset.name == "strict-protection"
+    assert config.ruleset.pull_request.required_approving_review_count == 2
+
+
+def test_ruleset_defaults() -> None:
+    """Test that Ruleset has sensible defaults."""
+    ruleset = Ruleset()
+
+    assert ruleset.name == "default-branch-protection"
+    assert ruleset.target == "branch"
+    assert ruleset.enforcement == "active"
+    assert ruleset.branch_pattern == "~DEFAULT_BRANCH"
+    assert ruleset.bypass_admins is True
+    assert ruleset.block_force_pushes is True
+    assert ruleset.block_deletions is True
+    assert ruleset.require_linear_history is False
+    assert ruleset.require_signed_commits is False
+    assert ruleset.pull_request.required_approving_review_count == 1
+    assert ruleset.pull_request.required_review_thread_resolution is True

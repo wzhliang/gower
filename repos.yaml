@@ -13,6 +13,25 @@ defaults:
   topics:
     - managed-by-tower
 
+  # Default ruleset for all repos: no direct push to main, require PR with review
+  ruleset:
+    name: default-branch-protection
+    target: branch
+    enforcement: active
+    branch_pattern: "~DEFAULT_BRANCH"
+    bypass_admins: true
+    block_force_pushes: true
+    block_deletions: true
+    require_linear_history: false
+    require_signed_commits: false
+    pull_request:
+      required_approving_review_count: 1
+      dismiss_stale_reviews_on_push: false
+      require_code_owner_review: false
+      require_last_push_approval: false
+      required_review_thread_resolution: true
+    # required_status_checks: []  # Configure per-repo as needed
+
 # Repository-specific configurations (override defaults as needed)
 repositories:
   - name: wzhliang/tt-01

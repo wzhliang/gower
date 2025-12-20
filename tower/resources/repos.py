@@ -45,23 +45,82 @@ def configure_repository(config: RepositoryConfig) -> github.Repository:
     )
 
 
-def configure_branch_protection(
+def configure_ruleset(
     config: RepositoryConfig,
-) -> github.BranchProtection | None:
-    """Configure branch protection rules for a repository."""
-    if not config.branch_protection:
+) -> github.RepositoryRuleset | None:
+    """Configure repository ruleset for branch protection.
+
+    Rulesets are the modern replacement for branch protection rules,
+    offering more flexibility and better enforcement options.
+    """
+    if not config.ruleset:
         return None
 
-    bp = config.branch_protection
-    return github.BranchProtection(
-        f"{_resource_name(config.name)}-{bp.pattern}-protection",
-        repository_id=_repo_name(config.name),
-        pattern=bp.pattern,
-        required_pull_request_reviews=[
-            github.BranchProtectionRequiredPullRequestReviewsArgs(
-                required_approving_review_count=bp.required_reviews,
-                dismiss_stale_reviews=bp.dismiss_stale_reviews,
-                require_code_owner_reviews=bp.require_code_owner_reviews,
+    rs = config.ruleset
+    repo_name = _repo_name(config.name)
+
+    # Build bypass actors list
+    bypass_actors: list[github.RepositoryRulesetBypassActorArgs] = []
+    if rs.bypass_admins:
+        bypass_actors.append(
+            github.RepositoryRulesetBypassActorArgs(
+                actor_type="RepositoryRole",
+                actor_id=5,  # 5 = Repository Admin role ID
+                bypass_mode="always",
             )
-        ],
+        )
+
+    # Build pull request rules
+    pull_request_args = github.RepositoryRulesetRulesPullRequestArgs(
+        required_approving_review_count=rs.pull_request.required_approving_review_count,
+        dismiss_stale_reviews_on_push=rs.pull_request.dismiss_stale_reviews_on_push,
+        require_code_owner_review=rs.pull_request.require_code_owner_review,
+        require_last_push_approval=rs.pull_request.require_last_push_approval,
+        required_review_thread_resolution=rs.pull_request.required_review_thread_resolution,
+    )
+
+    # Build required status checks if any
+    required_status_checks_args = None
+    if rs.required_status_checks:
+        required_checks = [
+            github.RepositoryRulesetRulesRequiredStatusChecksRequiredCheckArgs(
+                context=check.context,
+                integration_id=check.integration_id,
+            )
+            for check in rs.required_status_checks
+        ]
+        required_status_checks_args = (
+            github.RepositoryRulesetRulesRequiredStatusChecksArgs(
+                required_checks=required_checks,
+                strict_required_status_checks_policy=False,
+            )
+        )
+
+    # Build rules args
+    rules_args = github.RepositoryRulesetRulesArgs(
+        pull_request=pull_request_args,
+        required_status_checks=required_status_checks_args,
+        non_fast_forward=rs.block_force_pushes,
+        deletion=rs.block_deletions,
+        required_linear_history=rs.require_linear_history,
+        required_signatures=rs.require_signed_commits,
+    )
+
+    # Build conditions (which branches to apply to)
+    conditions_args = github.RepositoryRulesetConditionsArgs(
+        ref_name=github.RepositoryRulesetConditionsRefNameArgs(
+            includes=[rs.branch_pattern],
+            excludes=[],
+        )
+    )
+
+    return github.RepositoryRuleset(
+        f"{_resource_name(config.name)}-{rs.name}",
+        repository=repo_name,
+        name=rs.name,
+        target=rs.target,
+        enforcement=rs.enforcement,
+        bypass_actors=bypass_actors if bypass_actors else None,
+        conditions=conditions_args,
+        rules=rules_args,
     )

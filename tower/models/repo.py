@@ -5,13 +5,39 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class BranchProtection(BaseModel):
-    """Branch protection rule configuration."""
+class RequiredStatusCheck(BaseModel):
+    """Required status check configuration."""
 
-    pattern: str = "main"
-    required_reviews: int = 1
-    dismiss_stale_reviews: bool = True
-    require_code_owner_reviews: bool = False
+    context: str  # The name of the status check (e.g., "ci", "test", "build")
+    integration_id: int | None = None  # Optional GitHub App integration ID
+
+
+class RulesetPullRequest(BaseModel):
+    """Pull request rules within a ruleset."""
+
+    required_approving_review_count: int = 1
+    dismiss_stale_reviews_on_push: bool = False
+    require_code_owner_review: bool = False
+    require_last_push_approval: bool = False
+    required_review_thread_resolution: bool = True
+
+
+class Ruleset(BaseModel):
+    """Repository ruleset configuration."""
+
+    name: str = "default-branch-protection"
+    target: str = "branch"  # "branch" or "tag"
+    enforcement: str = "active"  # "active", "evaluate", or "disabled"
+    branch_pattern: str = "~DEFAULT_BRANCH"  # Pattern for branches to protect
+    bypass_admins: bool = True  # Allow repository admins to bypass
+
+    # Rules
+    pull_request: RulesetPullRequest = Field(default_factory=RulesetPullRequest)
+    required_status_checks: list[RequiredStatusCheck] = Field(default_factory=list)
+    block_force_pushes: bool = True
+    block_deletions: bool = True
+    require_linear_history: bool = False
+    require_signed_commits: bool = False
 
 
 class RepositorySecret(BaseModel):
@@ -39,7 +65,7 @@ class RepositoryDefaults(BaseModel):
     allow_merge_commit: bool = False
     allow_squash_merge: bool = True
     allow_rebase_merge: bool = False
-    branch_protection: BranchProtection | None = None
+    ruleset: Ruleset | None = None
     topics: list[str] = Field(default_factory=list)
 
 
@@ -56,8 +82,8 @@ class RepositoryOverride(BaseModel):
     allow_merge_commit: bool | None = None
     allow_squash_merge: bool | None = None
     allow_rebase_merge: bool | None = None
-    branch_protection: BranchProtection | None = None
-    branch_protection_disabled: bool = False  # Explicitly disable if defaults have it
+    ruleset: Ruleset | None = None
+    ruleset_disabled: bool = False  # Explicitly disable if defaults have it
     secrets: list[RepositorySecret] = Field(default_factory=list)
     variables: list[RepositoryVariable] = Field(default_factory=list)
     topics: list[str] | None = None  # None = use defaults, [] = no topics
@@ -77,13 +103,15 @@ class RepositoryConfig(BaseModel):
     allow_merge_commit: bool = False
     allow_squash_merge: bool = True
     allow_rebase_merge: bool = False
-    branch_protection: BranchProtection | None = None
+    ruleset: Ruleset | None = None
     secrets: list[RepositorySecret] = Field(default_factory=list)
     variables: list[RepositoryVariable] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
 
 
-def merge_config(defaults: RepositoryDefaults, override: RepositoryOverride) -> RepositoryConfig:
+def merge_config(
+    defaults: RepositoryDefaults, override: RepositoryOverride
+) -> RepositoryConfig:
     """Merge defaults with repository-specific overrides."""
     # Start with defaults
     config_dict: dict[str, Any] = {
@@ -97,7 +125,7 @@ def merge_config(defaults: RepositoryDefaults, override: RepositoryOverride) -> 
         "allow_merge_commit": defaults.allow_merge_commit,
         "allow_squash_merge": defaults.allow_squash_merge,
         "allow_rebase_merge": defaults.allow_rebase_merge,
-        "branch_protection": defaults.branch_protection,
+        "ruleset": defaults.ruleset,
         "secrets": override.secrets,
         "variables": override.variables,
     }
@@ -120,11 +148,11 @@ def merge_config(defaults: RepositoryDefaults, override: RepositoryOverride) -> 
     if override.allow_rebase_merge is not None:
         config_dict["allow_rebase_merge"] = override.allow_rebase_merge
 
-    # Branch protection: can override or explicitly disable
-    if override.branch_protection_disabled:
-        config_dict["branch_protection"] = None
-    elif override.branch_protection is not None:
-        config_dict["branch_protection"] = override.branch_protection
+    # Ruleset: can override or explicitly disable
+    if override.ruleset_disabled:
+        config_dict["ruleset"] = None
+    elif override.ruleset is not None:
+        config_dict["ruleset"] = override.ruleset
 
     # Topics: override completely or extend defaults
     if override.topics is not None:
